@@ -9,6 +9,7 @@ class Kernel
     @world        = new World "DefaultWorld"
     @dispatcher   = new Dispatcher
     @msgConverter = new TextInputToMessageConverter
+    @msgHandler   = new MessageHandler @world
     @setupDispatcher @dispatcher, @msgConverter
     @iq           = new CORE.Queue
     @oq           = new CORE.Queue
@@ -80,6 +81,7 @@ class Kernel
   #
   installWorld: (world) ->
     @world = world
+    @msgHandler.world = world
 
   #
   #  Retrieve a thing by its id
@@ -658,7 +660,7 @@ class Kernel
   #
   tick: =>
     while im = @iq.remove()
-      console.log im
+      @msgHandler.handle im
     @tock() if @oq.length > 0
 
   #
@@ -726,3 +728,19 @@ class Kernel
       world = wb.build()
       this.installWorld world
       doneCB()
+
+class MessageHandler
+  constructor: (@world) ->
+    throw "world required for MessageHandler" unless @world?
+
+  handle: (msg) ->
+    if @[msg.type]?
+      @[msg.type](msg)
+    else
+      debug "no message handler for #{msg.type}"
+
+  # TODO - implemented transit-door handler
+  "transit-door": (msg) ->
+    char = @world.search msg.source, one: true
+    door = char.parent.search msg.args.door, one: true
+    console.log "message handler for transit-door"
