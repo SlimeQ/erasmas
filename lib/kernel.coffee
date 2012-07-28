@@ -8,14 +8,18 @@ class Kernel
     @registry     = new Registry
     @world        = new World "DefaultWorld"
     @dispatcher   = new Dispatcher
-    @setupDispatcher @dispatcher
+    @msgConverter = new TextInputToMessageConverter
+    @setupDispatcher @dispatcher, @msgConverter
+    @iq           = new CORE.Queue
+    @oq           = new CORE.Queue
+    setInterval @tick, 20
 
   #
   #  Install logic handler for text commands
   #
   #  dispatcher - Object responsible for installation and matching of commands {Dispatcher}
   #
-  setupDispatcher: (dispatcher) ->
+  setupDispatcher: (dispatcher, converter) ->
     dispatcher.install @logic_save,          "save world to named file",                           "save",     "ALPHANUM"
     dispatcher.install @logic_save,          "save world to default filename",                     "save"
     dispatcher.install @logic_create_character, "create a new character",                          "create", "character", "ALPHANUM", "with", "password", "ALPHANUM"
@@ -47,6 +51,12 @@ class Kernel
     dispatcher.install @logic_look_at,       "look at a thing",                                    "look",     "ID"
     dispatcher.install @logic_look,          "look at current room",                               "look"
     dispatcher.install @logic_inspect,       "inspect a thing's attributes, children and actions", "inspect",  "ID"
+
+    converter.installHandler
+      type: "transit-door"
+      description:" go through a door"
+      tokens: ["go", "ID"]
+
     dispatcher.install @logic_go,            "go through a door",                                  "go",       "ID"
     dispatcher.install @logic_rename,        "rename a thing",                                     "rename",   "ID", "to", "ALPHANUM"
     dispatcher.install @logic_login,         "login with username and password",                   "login",    "ALPHANUM", "ALPHANUM"
@@ -644,11 +654,26 @@ class Kernel
     return "ADDED"
 
   #
+  #  process input messages
+  #
+  tick: =>
+    while im = @iq.remove()
+      console.log im
+    @tock() if @oq.length > 0
+
+  #
+  #  output results to clients
+  #
+  tock: =>
+    debug "sending output messages"
+
+  #
   #  Textual Input handling
   #
   handleInput: (conn, tokens, rawInput) =>
     response = @dispatcher.dispatch conn, rawInput
     response = @logic_custom conn, tokens unless response
+    @handleInputMsg conn, tokens, rawInput
 
     if response
       if utils.isArray(response)
@@ -657,6 +682,15 @@ class Kernel
         @send conn, response if response?
 
     return
+
+  #
+  #  Convert a text string to an input message and place in the
+  #  input queue.
+  #
+  handleInputMsg: (conn, tokens, raw) =>
+    msg = @msgConverter.messageFromText conn, tokens, raw
+    @iq.add msg if msg?
+    console.log @iq.toString()
 
   #
   #  Send a string to a connection socket {String}

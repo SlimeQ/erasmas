@@ -52,3 +52,6 @@ class Connection
     @character.disconnect()
     @character = null
     @socket.end()
+
+  toString: ->
+    "Connection"

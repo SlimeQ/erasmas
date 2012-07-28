@@ -6,6 +6,7 @@ puts          = require("util").puts
 srcfiles = [
   'lib/preamble.coffee',
   'lib/msg.coffee',
+  'lib/queues.coffee',
   'lib/dispatch.coffee',
   'lib/event.coffee',
   'lib/world_rebuilder.coffee',

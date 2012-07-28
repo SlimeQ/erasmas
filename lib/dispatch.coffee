@@ -1,6 +1,22 @@
 class Dispatcher
+  specs:
+    S:           "(?:\\s+)"
+    ID:          "([\\w\\d ]+\\[[\\w\\d]+\\]|[\\d]+|[\\w ]+|\\\"[\\w ]+\\\")"
+#      ALPHANUM:    "([\\[\\]\\w\\d\\.\\/]+|\\\"[\\[\\]\\w\\d\\. \\/]+\\\")"
+    CLS:         "([\\w\\d]+)"
+    ALPHANUM:    "(.+|\\\".+\\\")"
+
   constructor: () ->
     @cmds = []
+    @msg_cmds= []
+
+  # TODO - implement
+  installMsg: (args) ->
+    strRegex = (@specs[tok] || tok for tok in args.tokens).join(@specs.S)
+    @installRegexMsg
+    console.log args
+
+
 
   #
   #  Install a command handler from a list of tokens
@@ -10,14 +26,7 @@ class Dispatcher
   #  tokens - list of tokens (may be handler tokens}  {Array of String}
   #
   install: (func, desc, tokens...) ->
-    specs =
-      S:           "(?:\\s+)"
-      ID:          "([\\w\\d ]+\\[[\\w\\d]+\\]|[\\d]+|[\\w ]+|\\\"[\\w ]+\\\")"
-#      ALPHANUM:    "([\\[\\]\\w\\d\\.\\/]+|\\\"[\\[\\]\\w\\d\\. \\/]+\\\")"
-      CLS:         "([\\w\\d]+)"
-      ALPHANUM:    "(.+|\\\".+\\\")"
-
-    strRegex = (specs[tok] || tok for tok in tokens).join(specs.S)
+    strRegex = (@specs[tok] || tok for tok in tokens).join(@specs.S)
     @installRegex func, new RegExp(strRegex, "gi"), desc, tokens
 
   #
@@ -60,6 +69,7 @@ class Dispatcher
   #
   dispatch: (conn, cmd) ->
     [func, matches] = this.method(conn, cmd)
+
     if func
       return func.apply(null, [conn].concat(matches))
     else
@@ -82,3 +92,37 @@ class Dispatcher
       buffer.push cmd + " " + utils.repeat(" ", maxCommand - cmd.length) + "#{spec[2]}"
 
     buffer
+
+class TextInputToMessageConverter
+  specs:
+    S:           "(?:\\s+)"
+    ID:          "([\\w\\d ]+\\[[\\w\\d]+\\]|[\\d]+|[\\w ]+|\\\"[\\w ]+\\\")"
+    CLS:         "([\\w\\d]+)"
+    ALPHANUM:    "(.+|\\\".+\\\")"
+
+  constructor: ->
+    @handlers = []
+
+  installHandler: (args) ->
+    args.regex = new RegExp( (@specs[tok] || tok for tok in args.tokens).join(@specs.S), "gi" )
+    @handlers.push args
+
+  messageFromText: (conn, tokens, raw) ->
+    cmd = utils.trim raw
+    for handler in @handlers
+      handler.regex.exec ""
+      matches = handler.regex.exec cmd
+      if matches
+        matches = (utils.trimQuotes match for match in matches)
+        msg = new InputMessage conn.character.gid, null, handler.type, {}
+
+        # this will need to be much more general
+        switch handler.type
+          when "transit-door"
+            msg.args =
+              door: matches[1]
+
+        return msg
+
+    return null
+
